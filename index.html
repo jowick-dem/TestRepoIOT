@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Home — Rendang</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════
+       TOP BAR — System Dashboard
+  ══════════════════════════════════════════ -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="topbar-dot"></span>
+      <span class="topbar-title">RENDANG / <em>SMARTHOME</em></span>
+    </div>
+
+    <div class="topbar-stats">
+      <div class="stat-pill">
+        <span class="stat-label">TEMP</span>
+        <span class="stat-value" id="suhu">--<small>°C</small></span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">NET</span>
+        <span class="stat-value" id="conn-status">—</span>
+      </div>
+      <div class="stat-pill">
+        <span class="stat-label">CAM</span>
+        <span class="stat-value" id="cam-status">OFF</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       MAIN GRID
+  ══════════════════════════════════════════ -->
+  <main class="grid">
+
+    <!-- ── LEFT: CCTV ── -->
+    <section class="panel panel-cam">
+      <div class="panel-header">
+        <span class="panel-label">CCTV · GARASI</span>
+        <span class="rec-badge"><i></i> REC</span>
+      </div>
+
+      <div class="cam-viewport">
+        <img id="stream-view" src=""
+          style="display:none; width:100%; height:100%; object-fit:cover; transform:rotate(-90deg) scale(1.35);"
+          onload="camOnline()" onerror="camOffline()" />
+
+        <div id="offline-overlay" class="cam-offline">
+          <div class="cam-crosshair">
+            <div class="crosshair-h"></div>
+            <div class="crosshair-v"></div>
+            <div class="crosshair-circle"></div>
+          </div>
+          <span id="cam-msg">AWAITING SIGNAL</span>
+        </div>
+      </div>
+
+      <div class="cam-footer">
+        <span class="mono" id="ip-display">--.--.--.--</span>
+        <span class="mono cam-time" id="cam-time">00:00:00</span>
+      </div>
+    </section>
+
+    <!-- ── RIGHT: CONTROLS ── -->
+    <section class="panel panel-controls">
+
+      <!-- LIGHTING -->
+      <div class="control-block">
+        <div class="block-header">
+          <span class="block-label">LIGHTING</span>
+          <span class="block-count" id="lights-on-count">0 / 4 ON</span>
+        </div>
+
+        <div class="light-grid">
+          <!-- Teras -->
+          <div class="light-card" id="card-teras" data-room="teras">
+            <button class="light-icon-btn" onclick="toggleLampu('teras')" aria-label="Toggle Teras">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+            </button>
+            <span class="light-label">Teras</span>
+            <div class="slider-row">
+              <input type="range" class="dim-slider" id="slider-teras" min="0" max="255" value="0"
+                oninput="geserSlider('teras', this.value)" onchange="kirimSlider('teras', this.value)" />
+              <span class="dim-val" id="val-teras">0</span>
+            </div>
+          </div>
+
+          <!-- R. Tamu -->
+          <div class="light-card" id="card-tamu" data-room="tamu">
+            <button class="light-icon-btn" onclick="toggleLampu('tamu')" aria-label="Toggle Tamu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
+              </svg>
+            </button>
+            <span class="light-label">R. Tamu</span>
+            <div class="slider-row">
+              <input type="range" class="dim-slider" id="slider-tamu" min="0" max="255" value="0"
+                oninput="geserSlider('tamu', this.value)" onchange="kirimSlider('tamu', this.value)" />
+              <span class="dim-val" id="val-tamu">0</span>
+            </div>
+          </div>
+
+          <!-- K. Tidur -->
+          <div class="light-card" id="card-tidur" data-room="tidur">
+            <button class="light-icon-btn" onclick="toggleLampu('tidur')" aria-label="Toggle Tidur">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/>
+              </svg>
+            </button>
+            <span class="light-label">K. Tidur</span>
+            <div class="slider-row">
+              <input type="range" class="dim-slider" id="slider-tidur" min="0" max="255" value="0"
+                oninput="geserSlider('tidur', this.value)" onchange="kirimSlider('tidur', this.value)" />
+              <span class="dim-val" id="val-tidur">0</span>
+            </div>
+          </div>
+
+          <!-- Dapur -->
+          <div class="light-card" id="card-dapur" data-room="dapur">
+            <button class="light-icon-btn" onclick="toggleLampu('dapur')" aria-label="Toggle Dapur">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 002-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 00-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/>
+              </svg>
+            </button>
+            <span class="light-label">Dapur</span>
+            <div class="slider-row">
+              <input type="range" class="dim-slider" id="slider-dapur" min="0" max="255" value="0"
+                oninput="geserSlider('dapur', this.value)" onchange="kirimSlider('dapur', this.value)" />
+              <span class="dim-val" id="val-dapur">0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GATE CONTROL -->
+      <div class="control-block gate-block">
+        <div class="block-header">
+          <span class="block-label">GATE</span>
+          <span class="gate-status mono" id="gate-status">STANDBY</span>
+        </div>
+
+        <div class="gate-buttons">
+          <button class="gate-btn gate-open" onclick="gerbang('BUKA')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            BUKA
+          </button>
+          <button class="gate-btn gate-close" onclick="gerbang('TUTUP')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/><line x1="12" y1="15" x2="12" y2="19"/>
+            </svg>
+            TUTUP
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
