@@ -3,7 +3,7 @@
 A minimal IoT smart home dashboard — live on **GitHub Pages**.  
 Controls lighting (PWM dimmer), gate servo, and live CCTV stream via MQTT over WebSocket.
 
-🔗 **Live Demo:** `https://<your-username>.github.io/Smart_Home_Rendang`
+🔗 **Live Demo:** `https://jowick-dem.github.io/TestRepoIOT`
 
 ---
 
