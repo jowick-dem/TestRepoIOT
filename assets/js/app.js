@@ -1,6 +1,7 @@
 /**
  * Smart Home Rendang — app.js
  * MQTT controller for lighting, gate, temperature, and CCTV
+ * Real-time sync: all devices stay in sync via retained MQTT messages
  */
 
 // ─────────────────────────────────────────────
@@ -20,12 +21,14 @@ const CONFIG = {
   }
 };
 
+const ROOMS = ["teras", "tamu", "tidur", "dapur"];
+
 // ─────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────
 const state = {
-  lampu:   { teras: 0, tamu: 0, tidur: 0, dapur: 0 },
-  camIP:   "",
+  lampu:     { teras: 0, tamu: 0, tidur: 0, dapur: 0 },
+  camIP:     "",
   camOnline: false,
   gateActive: false,
 };
@@ -38,17 +41,42 @@ const client = new Paho.MQTT.Client(CONFIG.broker, CONFIG.port, CONFIG.clientId)
 client.onConnectionLost = (err) => {
   console.warn("[MQTT] Connection lost:", err.errorMessage);
   setConnStatus("OFFLINE");
+  // auto-reconnect after 5s
+  setTimeout(mqttConnect, 5000);
 };
 
 client.onMessageArrived = (msg) => {
   const { destinationName: topic, payloadString: payload } = msg;
 
+  // ── Temperature ──
   if (topic === CONFIG.topics.suhu) {
     document.getElementById("suhu").innerHTML = `${payload}<small>°C</small>`;
+    return;
   }
+
+  // ── Camera IP ──
   if (topic === CONFIG.topics.ipcam) {
     updateCamIP(payload);
+    return;
   }
+
+  // ── Gate status (from any device) ──
+  if (topic === CONFIG.topics.gerbang) {
+    applyGateState(payload.trim());
+    return;
+  }
+
+  // ── Lamp brightness (from any device) ──
+  ROOMS.forEach(room => {
+    if (topic === CONFIG.topics.lampu + room) {
+      const val = parseInt(payload) || 0;
+      state.lampu[room] = val;
+      // update slider position without re-publishing
+      const slider = document.getElementById(`slider-${room}`);
+      if (slider) slider.value = val;
+      updateLampCard(room, val);
+    }
+  });
 };
 
 function mqttConnect() {
@@ -59,13 +87,23 @@ function mqttConnect() {
     onSuccess: () => {
       console.log("[MQTT] Connected");
       setConnStatus("ON");
+
+      // ── Subscribe to all topics ──
       client.subscribe(CONFIG.topics.suhu);
       client.subscribe(CONFIG.topics.ipcam);
+      client.subscribe(CONFIG.topics.gerbang);
+
+      // Subscribe to each lamp channel
+      ROOMS.forEach(room => {
+        client.subscribe(CONFIG.topics.lampu + room);
+      });
+
+      // Retained messages will arrive immediately and restore UI state
     },
     onFailure: (err) => {
       console.error("[MQTT] Failed:", err);
       setConnStatus("ERR");
-      setTimeout(mqttConnect, 5000); // retry
+      setTimeout(mqttConnect, 5000);
     }
   });
 }
@@ -77,7 +115,7 @@ function mqttPublish(topic, payload) {
   }
   const msg = new Paho.MQTT.Message(String(payload));
   msg.destinationName = topic;
-  msg.retained = true;
+  msg.retained = true;   // retained = other devices get state on connect
   client.send(msg);
   return true;
 }
@@ -123,34 +161,28 @@ function updateClock() {
 // LIGHTING
 // ─────────────────────────────────────────────
 function toggleLampu(room) {
-  const current = state.lampu[room];
-  const next = current > 0 ? 0 : 255;
-  const slider = document.getElementById(`slider-${room}`);
-  slider.value = next;
-  state.lampu[room] = next;
-  updateLampCard(room, next);
+  const next = state.lampu[room] > 0 ? 0 : 255;
+  // publish only — UI update happens via onMessageArrived
   mqttPublish(CONFIG.topics.lampu + room, next);
 }
 
 function geserSlider(room, val) {
+  // live visual feedback while dragging (no publish yet)
   updateLampCard(room, parseInt(val));
 }
 
 function kirimSlider(room, val) {
-  const v = parseInt(val);
-  state.lampu[room] = v;
-  updateLampCard(room, v);
-  mqttPublish(CONFIG.topics.lampu + room, v);
+  // publish on release — all devices update via subscription
+  mqttPublish(CONFIG.topics.lampu + room, parseInt(val));
 }
 
 function updateLampCard(room, val) {
-  const card = document.getElementById(`card-${room}`);
-  const valEl = document.getElementById(`val-${room}`);
+  const card   = document.getElementById(`card-${room}`);
+  const valEl  = document.getElementById(`val-${room}`);
   const slider = document.getElementById(`slider-${room}`);
 
   if (val > 0) {
     card.classList.add("active");
-    // Update slider gradient fill
     const pct = Math.round((val / 255) * 100);
     slider.style.setProperty("--pct", pct + "%");
   } else {
@@ -171,37 +203,31 @@ function updateLightCount() {
 // ─────────────────────────────────────────────
 function gerbang(cmd) {
   if (state.gateActive) return;
+  // publish only — UI update happens via onMessageArrived
+  mqttPublish(CONFIG.topics.gerbang, cmd);
+}
 
+function applyGateState(cmd) {
   const statusEl = document.getElementById("gate-status");
   const btns = document.querySelectorAll(".gate-btn");
   const isOpen = cmd === "BUKA";
 
-  state.gateActive = true;
-  btns.forEach(b => b.disabled = true);
+  // If another device triggered it, reset gateActive after animation
+  if (!state.gateActive) {
+    state.gateActive = true;
+    btns.forEach(b => b.disabled = true);
+    showToast(`Gate ${isOpen ? "opening" : "closing"}...`);
+
+    setTimeout(() => {
+      state.gateActive = false;
+      btns.forEach(b => b.disabled = false);
+      statusEl.textContent = isOpen ? "OPEN" : "CLOSED";
+      statusEl.className   = `gate-status mono ${isOpen ? "open" : "closed"}`;
+    }, 4000);
+  }
 
   statusEl.textContent = isOpen ? "OPENING..." : "CLOSING...";
   statusEl.className = `gate-status mono ${isOpen ? "opening" : "closing"}`;
-
-  const sent = mqttPublish(CONFIG.topics.gerbang, cmd);
-  if (!sent) {
-    reset();
-    return;
-  }
-  showToast(`Gate ${isOpen ? "opening" : "closing"}...`);
-
-  setTimeout(() => {
-    statusEl.textContent = isOpen ? "OPEN" : "CLOSED";
-    statusEl.className   = `gate-status mono ${isOpen ? "open" : "closed"}`;
-    state.gateActive = false;
-    btns.forEach(b => b.disabled = false);
-  }, 4000);
-
-  function reset() {
-    statusEl.textContent = "STANDBY";
-    statusEl.className = "gate-status mono";
-    state.gateActive = false;
-    btns.forEach(b => b.disabled = false);
-  }
 }
 
 // ─────────────────────────────────────────────
@@ -210,9 +236,9 @@ function gerbang(cmd) {
 function setConnStatus(txt) {
   const el = document.getElementById("conn-status");
   el.textContent = txt;
-  if (txt === "ON") el.style.color = "var(--green)";
+  if (txt === "ON")                        el.style.color = "var(--green)";
   else if (txt === "ERR" || txt === "OFFLINE") el.style.color = "var(--red)";
-  else el.style.color = "var(--yellow)";
+  else                                     el.style.color = "var(--yellow)";
 }
 
 let toastTimer;
