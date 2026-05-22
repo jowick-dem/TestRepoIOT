@@ -34,6 +34,30 @@ const state = {
 };
 
 // ─────────────────────────────────────────────
+// THEME
+// ─────────────────────────────────────────────
+function initTheme() {
+  // Check saved preference, then system preference
+  const saved = localStorage.getItem("smh-theme");
+  if (saved === "light") {
+    document.documentElement.classList.add("light");
+  } else if (saved === "dark") {
+    document.documentElement.classList.remove("light");
+  } else {
+    // Use system preference if no saved choice
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
+      document.documentElement.classList.add("light");
+    }
+  }
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle("light");
+  localStorage.setItem("smh-theme", isLight ? "light" : "dark");
+  showToast(isLight ? "☀ Light mode" : "● Dark mode");
+}
+
+// ─────────────────────────────────────────────
 // MQTT
 // ─────────────────────────────────────────────
 const client = new Paho.MQTT.Client(CONFIG.broker, CONFIG.port, CONFIG.clientId);
@@ -236,9 +260,9 @@ function applyGateState(cmd) {
 function setConnStatus(txt) {
   const el = document.getElementById("conn-status");
   el.textContent = txt;
-  if (txt === "ON")                        el.style.color = "var(--green)";
+  if (txt === "ON")                            el.style.color = "var(--green)";
   else if (txt === "ERR" || txt === "OFFLINE") el.style.color = "var(--red)";
-  else                                     el.style.color = "var(--yellow)";
+  else                                         el.style.color = "var(--yellow)";
 }
 
 let toastTimer;
@@ -254,6 +278,7 @@ function showToast(msg) {
 // INIT
 // ─────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
+  initTheme();
   mqttConnect();
   updateClock();
   setInterval(updateClock, 1000);
