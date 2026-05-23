@@ -37,14 +37,12 @@ const state = {
 // THEME
 // ─────────────────────────────────────────────
 function initTheme() {
-  // Check saved preference, then system preference
   const saved = localStorage.getItem("smh-theme");
   if (saved === "light") {
     document.documentElement.classList.add("light");
   } else if (saved === "dark") {
     document.documentElement.classList.remove("light");
   } else {
-    // Use system preference if no saved choice
     if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) {
       document.documentElement.classList.add("light");
     }
@@ -65,37 +63,31 @@ const client = new Paho.MQTT.Client(CONFIG.broker, CONFIG.port, CONFIG.clientId)
 client.onConnectionLost = (err) => {
   console.warn("[MQTT] Connection lost:", err.errorMessage);
   setConnStatus("OFFLINE");
-  // auto-reconnect after 5s
   setTimeout(mqttConnect, 5000);
 };
 
 client.onMessageArrived = (msg) => {
   const { destinationName: topic, payloadString: payload } = msg;
 
-  // ── Temperature ──
   if (topic === CONFIG.topics.suhu) {
     document.getElementById("suhu").innerHTML = `${payload}<small>°C</small>`;
     return;
   }
 
-  // ── Camera IP ──
   if (topic === CONFIG.topics.ipcam) {
     updateCamIP(payload);
     return;
   }
 
-  // ── Gate status (from any device) ──
   if (topic === CONFIG.topics.gerbang) {
     applyGateState(payload.trim());
     return;
   }
 
-  // ── Lamp brightness (from any device) ──
   ROOMS.forEach(room => {
     if (topic === CONFIG.topics.lampu + room) {
       const val = parseInt(payload) || 0;
       state.lampu[room] = val;
-      // update slider position without re-publishing
       const slider = document.getElementById(`slider-${room}`);
       if (slider) slider.value = val;
       updateLampCard(room, val);
@@ -112,17 +104,10 @@ function mqttConnect() {
       console.log("[MQTT] Connected");
       setConnStatus("ON");
 
-      // ── Subscribe to all topics ──
       client.subscribe(CONFIG.topics.suhu);
       client.subscribe(CONFIG.topics.ipcam);
       client.subscribe(CONFIG.topics.gerbang);
-
-      // Subscribe to each lamp channel
-      ROOMS.forEach(room => {
-        client.subscribe(CONFIG.topics.lampu + room);
-      });
-
-      // Retained messages will arrive immediately and restore UI state
+      ROOMS.forEach(room => client.subscribe(CONFIG.topics.lampu + room));
     },
     onFailure: (err) => {
       console.error("[MQTT] Failed:", err);
@@ -139,7 +124,7 @@ function mqttPublish(topic, payload) {
   }
   const msg = new Paho.MQTT.Message(String(payload));
   msg.destinationName = topic;
-  msg.retained = true;   // retained = other devices get state on connect
+  msg.retained = true;
   client.send(msg);
   return true;
 }
@@ -150,12 +135,22 @@ function mqttPublish(topic, payload) {
 function updateCamIP(ip) {
   if (!ip || ip === state.camIP) return;
   state.camIP = ip;
-  const img = document.getElementById("stream-view");
+
   document.getElementById("ip-display").textContent = ip;
   document.getElementById("cam-msg").textContent = "CONNECTING...";
-  img.src = `http://${ip}:81/stream`;
+
+  // ── FIX: stream URL adalah root port 81, BUKAN /stream ──
+  // Firmware baru langsung serve MJPEG di http://<ip>:81
+  // (bukan http://<ip>:81/stream seperti sebelumnya)
+  const img = document.getElementById("stream-view");
+  img.src = `http://${ip}:81`;
+
+  // Aktifkan tombol WiFi reset sekarang IP sudah diketahui
+  const resetBtn = document.getElementById("btn-wifi-reset");
+  if (resetBtn) resetBtn.disabled = false;
 }
 
+// Dipanggil oleh onload pada <img id="stream-view">
 function camOnline() {
   state.camOnline = true;
   document.getElementById("stream-view").style.display = "block";
@@ -164,6 +159,7 @@ function camOnline() {
   document.getElementById("cam-status").style.color = "var(--green)";
 }
 
+// Dipanggil oleh onerror pada <img id="stream-view">
 function camOffline() {
   state.camOnline = false;
   document.getElementById("stream-view").style.display = "none";
@@ -172,6 +168,32 @@ function camOffline() {
   document.getElementById("cam-status").style.color = "var(--red)";
   document.getElementById("cam-msg").textContent =
     state.camIP ? "CAMERA UNREACHABLE" : "AWAITING SIGNAL";
+}
+
+// ── BARU: Reset WiFi ESP32 via endpoint /reset ──
+// ESP32 akan hapus konfigurasi WiFi & restart ke mode AP "ESP32CAM-Setup"
+function resetWifiESP() {
+  if (!state.camIP) {
+    showToast("⚠ IP kamera belum diketahui");
+    return;
+  }
+  if (!confirm(`Reset WiFi ESP32 (${state.camIP})?\nESP32 akan restart ke mode Access Point.`)) return;
+
+  fetch(`http://${state.camIP}/reset`)
+    .then(() => {
+      showToast("✓ Reset terkirim — konek ke 'ESP32CAM-Setup'");
+      // Nonaktifkan tombol & tandai kamera offline
+      document.getElementById("btn-wifi-reset").disabled = true;
+      state.camIP = "";
+      camOffline();
+    })
+    .catch(() => {
+      // fetch akan error karena ESP langsung restart — itu normal
+      showToast("✓ ESP32 sedang restart...");
+      document.getElementById("btn-wifi-reset").disabled = true;
+      state.camIP = "";
+      camOffline();
+    });
 }
 
 // Live clock in cam footer
@@ -186,17 +208,14 @@ function updateClock() {
 // ─────────────────────────────────────────────
 function toggleLampu(room) {
   const next = state.lampu[room] > 0 ? 0 : 255;
-  // publish only — UI update happens via onMessageArrived
   mqttPublish(CONFIG.topics.lampu + room, next);
 }
 
 function geserSlider(room, val) {
-  // live visual feedback while dragging (no publish yet)
   updateLampCard(room, parseInt(val));
 }
 
 function kirimSlider(room, val) {
-  // publish on release — all devices update via subscription
   mqttPublish(CONFIG.topics.lampu + room, parseInt(val));
 }
 
@@ -227,7 +246,6 @@ function updateLightCount() {
 // ─────────────────────────────────────────────
 function gerbang(cmd) {
   if (state.gateActive) return;
-  // publish only — UI update happens via onMessageArrived
   mqttPublish(CONFIG.topics.gerbang, cmd);
 }
 
@@ -236,7 +254,6 @@ function applyGateState(cmd) {
   const btns = document.querySelectorAll(".gate-btn");
   const isOpen = cmd === "BUKA";
 
-  // If another device triggered it, reset gateActive after animation
   if (!state.gateActive) {
     state.gateActive = true;
     btns.forEach(b => b.disabled = true);
