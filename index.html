@@ -12,7 +12,7 @@
 <body>
 
   <!-- ══════════════════════════════════════════
-       TOP BAR — System Dashboard
+       TOP BAR
   ══════════════════════════════════════════ -->
   <header class="topbar">
     <div class="topbar-brand">
@@ -35,9 +35,7 @@
       </div>
     </div>
 
-    <!-- Theme Toggle -->
     <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" onclick="toggleTheme()">
-      <!-- Sun icon (shown in dark mode) -->
       <svg class="icon-sun" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="5"/>
         <line x1="12" y1="1" x2="12" y2="3"/>
@@ -49,7 +47,6 @@
         <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
         <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
       </svg>
-      <!-- Moon icon (shown in light mode) -->
       <svg class="icon-moon" viewBox="0 0 24 24">
         <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
       </svg>
@@ -69,7 +66,16 @@
       </div>
 
       <div class="cam-viewport">
+        <!--
+          PERUBAHAN PENTING:
+          - onload  → panggil camOnline()  saat stream berhasil tampil
+          - onerror → panggil camOffline() saat stream gagal / putus
+          - TIDAK ada src di sini — diisi otomatis oleh app.js saat IP
+            diterima dari MQTT topic "proyekiot/ipcam"
+        -->
         <img id="stream-view" src=""
+          onload="camOnline()"
+          onerror="camOffline()"
           style="display:none; width:100%; height:100%; object-fit:cover; transform:rotate(-90deg) scale(1.35);" />
 
         <div id="offline-overlay" class="cam-offline">
@@ -85,6 +91,29 @@
       <div class="cam-footer">
         <span class="mono" id="ip-display">--.--.--.--</span>
         <span class="mono cam-time" id="cam-time">00:00:00</span>
+        <!--
+          BARU: Tombol reset WiFi — akan memanggil endpoint /reset
+          di ESP32 sehingga ESP32 restart ke mode Access Point (AP)
+          untuk ganti WiFi tanpa perlu flash ulang.
+          Tombol hanya aktif saat camIP sudah diketahui.
+        -->
+        <button
+          id="btn-wifi-reset"
+          class="wifi-reset-btn"
+          onclick="resetWifiESP()"
+          title="Reset konfigurasi WiFi ESP32"
+          disabled>
+          <!-- WiFi icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12.55a11 11 0 0114.08 0"/>
+            <path d="M1.42 9a16 16 0 0121.16 0"/>
+            <path d="M8.53 16.11a6 6 0 016.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+            <!-- small X to indicate reset -->
+            <line x1="18" y1="3" x2="22" y2="7"/>
+            <line x1="22" y1="3" x2="18" y2="7"/>
+          </svg>
+        </button>
       </div>
     </section>
 
