@@ -28,7 +28,6 @@
   --font-display: 'Syne', sans-serif;
   --font-mono:    'DM Mono', monospace;
 
-  /* Theme transition */
   --theme-transition: background 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -178,13 +177,12 @@ html, body {
   transition: stroke 0.3s ease, opacity 0.3s ease;
 }
 
-/* Sun icon shows in dark mode, moon in light mode */
 .icon-sun  { display: block; }
 .icon-moon { display: none; }
 :root.light .icon-sun  { display: none; }
 :root.light .icon-moon { display: block; }
 
-/* ─── MAIN GRID: MOBILE FIRST (single column) ─── */
+/* ─── MAIN GRID: MOBILE FIRST ─── */
 .grid {
   display: flex;
   flex-direction: column;
@@ -255,7 +253,6 @@ html, body {
   overflow: hidden;
 }
 
-/* In light mode, cam bg gets a slight warm tint when offline */
 :root.light .cam-offline { background: #0a0f1a; }
 
 .cam-viewport::after {
@@ -300,6 +297,8 @@ html, body {
   color: var(--text-dim);
 }
 
+/* ─── CAM FOOTER ─── */
+/* Sekarang ada 3 item: IP · waktu · tombol reset WiFi */
 .cam-footer {
   flex-shrink: 0;
   display: flex;
@@ -308,12 +307,47 @@ html, body {
   padding: 8px 16px;
   border-top: 1px solid var(--border);
   background: var(--surface2);
+  gap: 8px;
   transition: var(--theme-transition);
 }
 
 .mono { font-family: var(--font-mono); }
 #ip-display { font-size: 0.65rem; color: var(--green); letter-spacing: 0.05em; transition: color 0.3s ease; }
-.cam-time   { font-size: 0.65rem; color: var(--text-dim); }
+.cam-time   { font-size: 0.65rem; color: var(--text-dim); flex: 1; text-align: center; }
+
+/* ─── WIFI RESET BUTTON ─── */
+/* Tombol kecil di pojok kanan cam-footer untuk reset WiFi ESP32.
+   Hanya aktif setelah IP kamera diterima via MQTT.            */
+.wifi-reset-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.wifi-reset-btn svg {
+  width: 14px; height: 14px;
+  stroke: currentColor;
+  fill: none;
+}
+.wifi-reset-btn:not(:disabled):hover {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: var(--red);
+}
+.wifi-reset-btn:not(:disabled):active { transform: scale(0.92); }
+.wifi-reset-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 
 /* ─── CONTROL PANEL ─── */
 .panel-controls {
@@ -509,7 +543,7 @@ html, body {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ─── DESKTOP: two-column layout ─── */
+/* ─── DESKTOP ─── */
 @media (min-width: 700px) {
   :root { --topbar-h: 58px; }
 
